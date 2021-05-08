@@ -66,7 +66,7 @@ vocals_irm1 = abs(stft(vocals_gt)) / abs(stft(mix))
 vocals_est = istft(vocals_irm1 * stft(mix)) # estimate after "round trip" through soft mask
 ```
 
-The source code for the MPI oracle is in [oracle_eval/shared.py](). Here are the results, comparing two different window sizes of STFT - the flag is `--control` since in relation to the NSGT, the STFT is the control/default configuration.
+The source code for the MPI oracle is in [oracle_eval/shared.py](https://github.com/sevagh/mss-oracle-experiments/blob/main/oracle_eval/shared.py#L186). Here are the results, comparing two different window sizes of STFT - the flag is `--control` since in relation to the NSGT, the STFT is the control/default configuration.
 
 Evaluation of MPI oracle vs. IRM1 oracle on 1 random track from MUSDB18-HQ:
 ```
