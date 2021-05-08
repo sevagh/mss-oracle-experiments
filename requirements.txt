@@ -1,0 +1,12 @@
+scipy
+numpy
+museval
+git+git://github.com/sevagh/nsgt#egg=nsgt
+librosa
+pandas
+seaborn
+line_profiler
+memory_profiler
+tqdm
+bayesian-optimization
+musdb

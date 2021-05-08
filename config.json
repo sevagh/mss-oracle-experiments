@@ -1,0 +1,12 @@
+{
+  "stft_configs": {
+    "window_sizes": [1024, 2048, 4096, 8192, 16384]
+  },
+  "nsgt_configs": [
+    {
+      "bins": 96,
+      "fmin": 20.0,
+      "scale": "cqlog"
+    }
+  ]
+}
