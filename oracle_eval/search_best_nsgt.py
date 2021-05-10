@@ -42,7 +42,9 @@ class TrackEvaluator:
             raise ValueError(f'unsupported oracle {oracle}')
 
     def eval_control(self, window_size=4096):
-        return self.oracle(control=True, stft_window=window_size)
+        all_bsses, single_score = self.oracle(control=True, stft_window=window_size)
+        print(all_bsses)
+        return single_score
 
     def eval_vqlog(self, fmin=20.0, bins=12, gamma=25):
         return self.oracle(scale='vqlog', fmin=fmin, bins=bins, gamma=gamma, control=False)
@@ -65,6 +67,7 @@ class TrackEvaluator:
         if control:
             transform_type = "stft"
 
+        bss_scores_objs = []
         for track in self.tracks:
             #print(f'track: {track.name}')
             N = track.audio.shape[0]
@@ -72,7 +75,7 @@ class TrackEvaluator:
             tf = TFTransform(N, track.rate, transform_type, stft_window, scale, fmin, bins, gamma)
 
             _, bss_scores_obj = self.oracle_func(track, tf, eval_dir=None)
-            print(bss_scores_obj)
+            bss_scores_objs.append(bss_scores_obj)
             bss_scores = bss_scores_obj.scores
 
             scores = np.zeros((4, 1), dtype=np.float32)
@@ -86,15 +89,19 @@ class TrackEvaluator:
             median_sdr = np.median(scores)
             med_sdrs.append(median_sdr)
 
+        if control:
+            tot = museval.EvalStore()
+            [tot.add_track(b) for b in bss_scores_objs]
+            return tot, np.median(med_sdrs)
         return np.median(med_sdrs)
 
 
-def optimize(f, bounds, name, n_iter, n_random, logdir=None):
+def optimize(f, bounds, name, n_iter, n_random, logdir=None, randstate=1):
     optimizer = BayesianOptimization(
         f=f,
         pbounds=bounds,
         verbose=2,
-        random_state=1,
+        random_state=randstate,
     )
     if logdir:
         logpath = os.path.join(logdir, f"./{name}_logs.json")
@@ -132,10 +139,34 @@ if __name__ == '__main__':
         help='comma-separated window sizes of stft to evaluate'
     )
     parser.add_argument(
+        '--bins',
+        type=str,
+        default='12,2000',
+        help='comma-separated range of bins to evaluate'
+    )
+    parser.add_argument(
+        '--fmins',
+        type=str,
+        default='10,130',
+        help='comma-separated range of fmin to evaluate'
+    )
+    parser.add_argument(
+        '--gammas',
+        type=str,
+        default='0,100',
+        help='comma-separated range of gamma to evaluate'
+    )
+    parser.add_argument(
         '--oracle',
         type=str,
         default='irm1',
         help='type of oracle to compute (choices: irm1, irm2, ibm1, ibm2, mpi)'
+    )
+    parser.add_argument(
+        '--fscale',
+        type=str,
+        default='vqlog',
+        help='which frequency scale nsgt to optimize (choices: vqlog, cqlog, mel, bark)'
     )
     parser.add_argument(
         '--n-random-tracks',
@@ -187,9 +218,10 @@ if __name__ == '__main__':
 
     t = TrackEvaluator(tracks, oracle=args.oracle)
 
-    bins = (12,348)
-    fmins = (15.0,60.0)
-    gammas = (0.0,100.0)
+    bins = [int(x) for x in args.bins.split(',')]
+    fmins = [float(x) for x in args.fmins.split(',')]
+    gammas = [float(x) for x in args.gammas.split(',')]
+    print(f'Parameter ranges to evaluate:\n\t{bins=}\n\t{fmins=}\n\t{gammas=}')
 
     pbounds_vqlog = {
         'bins': bins,
@@ -207,10 +239,16 @@ if __name__ == '__main__':
     if args.control:
         for window_size in [int(x) for x in args.control_window_sizes.split(',')]:
             print(f'evaluating control stft {window_size}')
-            print('median SDR: {0}'.format(t.eval_control(window_size=window_size)))
+            print('median SDR (no accompaniment): {0}'.format(t.eval_control(window_size=window_size)))
         sys.exit(0)
 
-    optimize(t.eval_vqlog, pbounds_vqlog, "vqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir)
-    optimize(t.eval_cqlog, pbounds_other, "cqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir)
-    optimize(t.eval_mel, pbounds_other, "mel", args.optimization_iter, args.optimization_random, logdir=args.logdir)
-    optimize(t.eval_bark, pbounds_other, "bark", args.optimization_iter, args.optimization_random, logdir=args.logdir)
+    if args.fscale == 'vqlog':
+        optimize(t.eval_vqlog, pbounds_vqlog, "vqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir, randstate=args.random_seed)
+    elif args.fscale == 'cqlog':
+        optimize(t.eval_cqlog, pbounds_other, "cqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir, randstate=args.random_seed)
+    elif args.fscale == 'mel':
+        optimize(t.eval_mel, pbounds_other, "mel", args.optimization_iter, args.optimization_random, logdir=args.logdir, randstate=args.random_seed)
+    elif args.fscale == 'bark':
+        optimize(t.eval_bark, pbounds_other, "bark", args.optimization_iter, args.optimization_random, logdir=args.logdir, randstate=args.random_seed)
+    else:
+        raise ValueError(f'unsupported frequency scale {args.fscale}')
