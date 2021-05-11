@@ -17,9 +17,6 @@ from shared import ideal_mask, ideal_mixphase, TFTransform
 import scipy
 from scipy.signal import stft, istft
 
-# use CQT based on nonstationary gabor transform
-from nsgt import NSGT, OctScale, MelScale, LogScale, VQLogScale, BarkScale
-
 import json
 from types import SimpleNamespace
 
@@ -65,11 +62,11 @@ class TrackEvaluator:
         if control:
             transform_type = "stft"
 
+        tf = TFTransform(track.rate, transform_type, stft_window, scale, fmin, bins, gamma, slicq_sllen, slicq_trlen)
+
         for track in self.tracks:
             #print(f'track: {track.name}')
             N = track.audio.shape[0]
-
-            tf = TFTransform(N, track.rate, transform_type, stft_window, scale, fmin, bins, gamma)
 
             _, bss_scores_obj = self.oracle_func(track, tf, eval_dir=None)
             print(bss_scores_obj)

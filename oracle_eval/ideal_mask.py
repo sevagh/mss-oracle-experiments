@@ -12,11 +12,7 @@ import tqdm
 import scipy
 from scipy.signal import stft, istft
 
-# use CQT based on nonstationary gabor transform
-from nsgt import NSGT, MelScale, LogScale, BarkScale, VQLogScale
-
 import json
-from types import SimpleNamespace
 
 from shared import ideal_mask, ideal_mixphase, TFTransform
 
@@ -47,7 +43,7 @@ if __name__ == '__main__':
     max_tracks = int(os.getenv('MUSDB_MAX_TRACKS', sys.maxsize))
 
     # initiate musdb
-    mus = musdb.DB(subsets='test', is_wav=True)
+    mus = musdb.DB(subsets='test', download=True)
 
     # accumulate all time-frequency configs to compare
     tfs = []
@@ -56,37 +52,37 @@ if __name__ == '__main__':
         config = json.load(jf)
         tmp = None
         for stft_win in config.get('stft_configs', {}).get('window_sizes', []):
-            tmp = {'type': 'stft', 'window': stft_win}
-            tmp['name'] = f's{str(stft_win)}'
-
-            tf_transform = SimpleNamespace(**tmp)
-            tfs.append(tf_transform)
+            tfs.append(
+                TFTransform(
+                    44100,
+                    transform_type="stft",
+                    window=stft_win
+                )
+            )
         for nsgt_conf in config.get('nsgt_configs', []):
-            tmp = {'type': 'nsgt', 'scale': nsgt_conf['scale'], 'fmin': nsgt_conf['fmin'], 'fmax': 22050, 'bins': nsgt_conf['bins']}
-            fmin_str = f"{nsgt_conf['fmin']}"
-            fmin_str = fmin_str.replace('.', '')
-            tmp['name'] = f"{nsgt_conf['scale']}"
-
-            if nsgt_conf.get('gamma', None):
-                tmp['gamma'] = nsgt_conf['gamma']
-
-            tf_transform = SimpleNamespace(**tmp)
-            tfs.append(tf_transform)
+            tfs.append(
+                TFTransform(
+                    44100,
+                    transform_type="nsgt",
+                    fscale=nsgt_conf['scale'],
+                    fmin=nsgt_conf['fmin'],
+                    fbins=nsgt_conf['bins'],
+                    fgamma=nsgt_conf.get('gamma', 0.0),
+                )
+            )
 
     masks = [
             {'power': 1, 'binary': False},
-            {'power': 2, 'binary': False},
-            {'power': 1, 'binary': True},
-            {'power': 2, 'binary': True},
-            {'power': 1, 'binary': False, 'phasemix': True},
+            #{'power': 2, 'binary': False},
+            #{'power': 1, 'binary': True},
+            #{'power': 2, 'binary': True},
+            #{'power': 1, 'binary': False, 'phasemix': True},
     ]
 
     mss_evaluations = list(itertools.product(mus.tracks[:max_tracks], tfs, masks))
 
-    for (track, tf_transform, mask) in tqdm.tqdm(mss_evaluations):
+    for (track, tf, mask) in tqdm.tqdm(mss_evaluations):
         N = track.audio.shape[0]  # remember number of samples for future use
-        tf = TFTransform(N, track.rate, tf_transform)
-
         # construct mask name e.g. irm1, ibm2
         mask_name = 'i'
         if mask['binary']:
@@ -99,10 +95,14 @@ if __name__ == '__main__':
             mask_name = 'mpi'
 
         name = mask_name
-        if tf_transform.name != '':
-            name += f'-{tf_transform.name}'
+        if tf.name != '':
+            name += f'-{tf.name}'
 
         est = None
+
+        est_path = os.path.join(args.eval_dir, f'{name}') if args.eval_dir else None
+        aud_path = os.path.join(args.audio_dir, f'{name}') if args.audio_dir else None
+
         if not mask.get('phasemix', False):
             # ideal mask
             est, _ = ideal_mask(
@@ -111,7 +111,7 @@ if __name__ == '__main__':
                 mask['power'],
                 mask['binary'],
                 0.5,
-                os.path.join(args.eval_dir, f'{name}'))
+                est_path)
         else:
             print('doing phasemix!')
             est, _ = ideal_mixphase(
@@ -122,4 +122,4 @@ if __name__ == '__main__':
         gc.collect()
 
         if args.audio_dir:
-            mus.save_estimates(est, track, os.path.join(args.eval_dir, f'{name}'))
+            mus.save_estimates(est, track, aud_path)
