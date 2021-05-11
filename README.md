@@ -76,7 +76,7 @@ $ python oracle_eval/search_best_nsgt.py --control \
     --control-window-sizes='2048,4096' \
     --oracle='mpi' \
     --n-random-tracks=1
-using 1 random tracks from MUSDB18-HQ test set
+using 1 random tracks from MUSDB18-HQ train set validation split
 oracle: mpi
 evaluating control stft 2048
 drums           ==> SDR:   9.728  SIR:  20.598  ISR:  22.516  SAR:   9.841
@@ -102,7 +102,7 @@ $ python oracle_eval/search_best_nsgt.py --control \
     --control-window-sizes='2048,4096' \
     --oracle='irm1' \
     --n-random-tracks=1
-using 1 random tracks from MUSDB18-HQ test set
+using 1 random tracks from MUSDB18-HQ train set validation split
 oracle: irm1
 evaluating control stft 2048
 drums           ==> SDR:   9.670  SIR:  20.991  ISR:  15.276  SAR:  10.493

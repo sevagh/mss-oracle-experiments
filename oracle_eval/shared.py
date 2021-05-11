@@ -42,18 +42,13 @@ class TFTransform:
             else:
                 raise ValueError(f"unsupported scale {fscale}")
 
-            # nsgt has a multichannel=True param which blows memory up. prefer to do it myself
+            # use slice length required to support desired frequency scale/q factors
             sllen = scl.suggested_sllen(fs)
-
             trlen = sllen//4
-
-            # make trlen divisible by 2
-            trlen = trlen + -trlen % 2
+            trlen = trlen + -trlen % 2 # make trlen divisible by 2
 
             print(f'{sllen=}, {trlen=}')
-
             self.nsgt = NSGT_sliced(scl, sllen, trlen, fs, real=True, matrixform=True, multichannel=True)
-
             self.name = fscale
         else:
             self.name = f's{window}'

@@ -42,8 +42,8 @@ if __name__ == '__main__':
 
     max_tracks = int(os.getenv('MUSDB_MAX_TRACKS', sys.maxsize))
 
-    # initiate musdb
-    mus = musdb.DB(subsets='test', is_wav=True)
+    # initiate musdb with validation tracks
+    mus = musdb.DB(subsets='train', split='valid', is_wav=True)
 
     # accumulate all time-frequency configs to compare
     tfs = []

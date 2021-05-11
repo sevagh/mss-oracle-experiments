@@ -204,16 +204,16 @@ if __name__ == '__main__':
     random.seed(args.random_seed)
 
     # initiate musdb
-    mus = musdb.DB(subsets='test', is_wav=True)
+    mus = musdb.DB(subsets='train', split='valid', is_wav=True)
 
     max_tracks = min(int(os.getenv('MUSDB_MAX_TRACKS', sys.maxsize)), len(mus.tracks))
 
     tracks = None
     if args.n_random_tracks:
-        print(f'using {args.n_random_tracks} random tracks from MUSDB18-HQ test set')
+        print(f'using {args.n_random_tracks} random tracks from MUSDB18-HQ train set validation split')
         tracks = random.sample(mus.tracks, args.n_random_tracks)
     else:
-        print(f'using tracks 0-{max_tracks} from MUSDB18-HQ test set')
+        print(f'using tracks 0-{max_tracks} from MUSDB18-HQ train set validation split')
         tracks = mus.tracks[:max_tracks]
 
     t = TrackEvaluator(tracks, oracle=args.oracle)
