@@ -62,13 +62,16 @@ class TFTransform:
         if not self.nsgt:
             return stft(audio.T, nperseg=self.nperseg, noverlap=self.noverlap)[-1].astype(np.complex64)
         else:
-            return np.asarray(list(self.nsgt.forward((audio,)))).astype(np.complex64)
+            print('slicq forward!')
+            return np.asarray(list(self.nsgt.forward((audio.T,)))).astype(np.complex64)
 
     def backward(self, X, len_x):
+        print(len_x)
         if not self.nsgt:
             return istft(X, nperseg=self.nperseg, noverlap=self.noverlap)[1].T.astype(np.float32)
         else:
-            return next(reblock(self.nsgt.backward(X), len_x, fulllast=False)).real.T
+            print('slicq backward!')
+            return next(reblock(self.nsgt.backward(X), len_x, fulllast=False, multichannel=True)).real.astype(np.float32).T
 
 
 def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
@@ -93,7 +96,9 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
 
     X = tf.forward(track.audio)
 
-    (I, F, T) = X.shape
+    print(X.shape)
+
+    #(I, F, T) = X.shape
 
     # soft mask stuff
     if not binary_mask:
@@ -127,6 +132,8 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
 
         # multiply the mix by the mask
         Yj = np.multiply(X, Mask)
+
+        print(Yj.shape)
 
         # invert to time domain
         target_estimate = tf.backward(Yj, N)
@@ -171,7 +178,8 @@ def ideal_mixphase(track, tf, eval_dir=None):
 
     X = tf.forward(track.audio)
 
-    (I, F, T) = X.shape
+    #(I, F, T) = X.shape
+    print(X.shape)
 
     # Compute sources spectrograms
     P = {}

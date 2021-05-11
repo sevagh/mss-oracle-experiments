@@ -39,37 +39,48 @@ class TrackEvaluator:
             raise ValueError(f'unsupported oracle {oracle}')
 
     def eval_control(self, window_size=4096):
-        return self.oracle(control=True, stft_window=window_size)
+        medsdr, tot = self.oracle(control=True, stft_window=window_size)
+        print(tot)
+        return medsdr
 
     def eval_vqlog(self, fmin=20.0, bins=12, gamma=25):
-        return self.oracle(scale='vqlog', fmin=fmin, bins=bins, gamma=gamma, control=False)
+        medsdr, tot = self.oracle(scale='vqlog', fmin=fmin, bins=bins, gamma=gamma, control=False)
+        print(tot)
+        return medsdr
 
     def eval_cqlog(self, fmin=20.0, bins=12):
-        return self.oracle(scale='cqlog', fmin=fmin, bins=bins, control=False)
+        medsdr, tot = self.oracle(scale='cqlog', fmin=fmin, bins=bins, control=False)
+        print(tot)
+        return medsdr
 
     def eval_mel(self, fmin=20.0, bins=12):
-        return self.oracle(scale='mel', fmin=fmin, bins=bins, control=False)
+        medsdr, tot = self.oracle(scale='mel', fmin=fmin, bins=bins, control=False)
+        print(tot)
+        return medsdr
 
     def eval_bark(self, fmin=20.0, bins=12):
-        return self.oracle(scale='bark', fmin=fmin, bins=bins, control=False)
+        medsdr, tot = self.oracle(scale='bark', fmin=fmin, bins=bins, control=False)
+        print(tot)
+        return medsdr
 
     def oracle(self, scale='cqlog', fmin=20.0, bins=12, gamma=25, control=False, stft_window=4096):
         bins = int(bins)
 
         med_sdrs = []
+        bss_scores_objs = []
 
         transform_type = "nsgt"
         if control:
             transform_type = "stft"
 
-        tf = TFTransform(track.rate, transform_type, stft_window, scale, fmin, bins, gamma, slicq_sllen, slicq_trlen)
+        tf = TFTransform(44100, transform_type, stft_window, scale, fmin, bins, gamma)
 
         for track in self.tracks:
             #print(f'track: {track.name}')
             N = track.audio.shape[0]
 
             _, bss_scores_obj = self.oracle_func(track, tf, eval_dir=None)
-            print(bss_scores_obj)
+            bss_scores_objs.append(bss_scores_obj)
             bss_scores = bss_scores_obj.scores
 
             scores = np.zeros((4, 1), dtype=np.float32)
@@ -82,8 +93,10 @@ class TrackEvaluator:
 
             median_sdr = np.median(scores)
             med_sdrs.append(median_sdr)
+            tot = museval.EvalStore()
+            [tot.add_track(t) for t in bss_scores_objs]
 
-        return np.median(med_sdrs)
+        return np.median(med_sdrs), tot
 
 
 def optimize(f, bounds, name, n_iter, n_random, logdir=None):
@@ -135,6 +148,12 @@ if __name__ == '__main__':
         help='type of oracle to compute (choices: irm1, irm2, ibm1, ibm2, mpi)'
     )
     parser.add_argument(
+        '--fscale',
+        type=str,
+        default='vqlog',
+        help='nsgt frequency scale (choices: vqlog, cqlog, mel, bark)'
+    )
+    parser.add_argument(
         '--n-random-tracks',
         type=int,
         default=None,
@@ -184,8 +203,8 @@ if __name__ == '__main__':
 
     t = TrackEvaluator(tracks, oracle=args.oracle)
 
-    bins = (12,348)
-    fmins = (15.0,60.0)
+    bins = (12,2000)
+    fmins = (10.0,130.0)
     gammas = (0.0,100.0)
 
     pbounds_vqlog = {
@@ -207,7 +226,11 @@ if __name__ == '__main__':
             print('median SDR: {0}'.format(t.eval_control(window_size=window_size)))
         sys.exit(0)
 
-    optimize(t.eval_vqlog, pbounds_vqlog, "vqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir)
-    optimize(t.eval_cqlog, pbounds_other, "cqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir)
-    optimize(t.eval_mel, pbounds_other, "mel", args.optimization_iter, args.optimization_random, logdir=args.logdir)
-    optimize(t.eval_bark, pbounds_other, "bark", args.optimization_iter, args.optimization_random, logdir=args.logdir)
+    if args.fscale == 'vqlog':
+        optimize(t.eval_vqlog, pbounds_vqlog, "vqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir)
+    elif args.fscale == 'cqlog':
+        optimize(t.eval_cqlog, pbounds_other, "cqlog", args.optimization_iter, args.optimization_random, logdir=args.logdir)
+    elif args.fscale == 'mel':
+        optimize(t.eval_mel, pbounds_other, "mel", args.optimization_iter, args.optimization_random, logdir=args.logdir)
+    elif args.fscale == 'bark':
+        optimize(t.eval_bark, pbounds_other, "bark", args.optimization_iter, args.optimization_random, logdir=args.logdir)
