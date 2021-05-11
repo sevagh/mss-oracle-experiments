@@ -17,9 +17,6 @@ from shared import ideal_mask, ideal_mixphase, TFTransform
 import scipy
 from scipy.signal import stft, istft
 
-# use CQT based on nonstationary gabor transform
-from nsgt import NSGT, OctScale, MelScale, LogScale, VQLogScale, BarkScale
-
 import json
 from types import SimpleNamespace
 
@@ -62,17 +59,18 @@ class TrackEvaluator:
         bins = int(bins)
 
         med_sdrs = []
+        bss_scores_objs = []
 
         transform_type = "nsgt"
         if control:
             transform_type = "stft"
 
         bss_scores_objs = []
+        tf = TFTransform(44100, transform_type, stft_window, scale, fmin, bins, gamma)
+
         for track in self.tracks:
             #print(f'track: {track.name}')
             N = track.audio.shape[0]
-
-            tf = TFTransform(N, track.rate, transform_type, stft_window, scale, fmin, bins, gamma)
 
             _, bss_scores_obj = self.oracle_func(track, tf, eval_dir=None)
             bss_scores_objs.append(bss_scores_obj)
@@ -88,6 +86,8 @@ class TrackEvaluator:
 
             median_sdr = np.median(scores)
             med_sdrs.append(median_sdr)
+            tot = museval.EvalStore()
+            [tot.add_track(t) for t in bss_scores_objs]
 
         if control:
             tot = museval.EvalStore()
@@ -166,7 +166,7 @@ if __name__ == '__main__':
         '--fscale',
         type=str,
         default='vqlog',
-        help='which frequency scale nsgt to optimize (choices: vqlog, cqlog, mel, bark)'
+        help='nsgt frequency scale (choices: vqlog, cqlog, mel, bark)'
     )
     parser.add_argument(
         '--n-random-tracks',
@@ -218,9 +218,9 @@ if __name__ == '__main__':
 
     t = TrackEvaluator(tracks, oracle=args.oracle)
 
-    bins = [int(x) for x in args.bins.split(',')]
-    fmins = [float(x) for x in args.fmins.split(',')]
-    gammas = [float(x) for x in args.gammas.split(',')]
+    bins = tuple([int(x) for x in args.bins.split(',')])
+    fmins = tuple([float(x) for x in args.fmins.split(',')])
+    gammas = tuple([float(x) for x in args.gammas.split(',')])
     print(f'Parameter ranges to evaluate:\n\t{bins=}\n\t{fmins=}\n\t{gammas=}')
 
     pbounds_vqlog = {

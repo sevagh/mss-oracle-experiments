@@ -12,57 +12,21 @@ import scipy
 from scipy.signal import stft, istft
 
 # use CQT based on nonstationary gabor transform
-from nsgt import NSGT, MelScale, LogScale, BarkScale, VQLogScale
-
+from nsgt import NSGT_sliced, MelScale, LogScale, BarkScale, VQLogScale
+from nsgt.reblock import reblock
 
 # small epsilon to avoid dividing by zero
 eps = np.finfo(np.float32).eps
 
 
-def _atan2(y, x):
-    r"""Element-wise arctangent function of y/x.
-    copied from umx, replace torch with np
-    """
-    pi = 2 * np.arcsin(1.0)
-    x += ((x == 0) & (y == 0)) * 1.0
-    out = np.arctan(y / x)
-    out += ((y >= 0) & (x < 0)) * pi
-    out -= ((y < 0) & (x < 0)) * pi
-    out *= 1 - ((y > 0) & (x == 0)) * 1.0
-    out += ((y > 0) & (x == 0)) * (pi / 2)
-    out *= 1 - ((y < 0) & (x == 0)) * 1.0
-    out += ((y < 0) & (x == 0)) * (-pi / 2)
-    return out
-
-
-def multichan_nsgt(audio, nsgt):
-    n_chan = audio.shape[1]
-    Xs = []
-    for i in range(n_chan):
-        Xs.append(np.asarray(nsgt.forward(audio[:, i])))
-    return np.asarray(Xs).astype(np.complex64)
-
-
-def multichan_insgt(C, nsgt):
-    n_chan = C.shape[0]
-    rets = []
-    for i in range(n_chan):
-        C_chan = C[i, :, :]
-        inv = nsgt.backward(C_chan)
-        rets.append(inv)
-    ret_audio = np.asarray(rets)
-    return ret_audio.T
-
-
 class TFTransform:
-    def __init__(self, ntrack, fs, transform_type="stft", window=4096, fscale="cqlog", fmin=20.0, fbins=48, fgamma=25.0):
+    def __init__(self, fs, transform_type="stft", window=4096, fscale="cqlog", fmin=20.0, fbins=48, fgamma=25.0):
         use_nsgt = (transform_type == "nsgt")
 
         self.nperseg = window
         self.noverlap = self.nperseg // 4
 
         self.nsgt = None
-        self.N = ntrack
         self.nsgt = None
 
         if use_nsgt:
@@ -79,19 +43,35 @@ class TFTransform:
                 raise ValueError(f"unsupported scale {fscale}")
 
             # nsgt has a multichannel=True param which blows memory up. prefer to do it myself
-            self.nsgt = NSGT(scl, fs, self.N, real=True, matrixform=True)
+            sllen = scl.suggested_sllen(fs)
+
+            trlen = sllen//4
+
+            # make trlen divisible by 2
+            trlen = trlen + -trlen % 2
+
+            print(f'{sllen=}, {trlen=}')
+
+            self.nsgt = NSGT_sliced(scl, sllen, trlen, fs, real=True, matrixform=True, multichannel=True)
+
+            self.name = fscale
+        else:
+            self.name = f's{window}'
 
     def forward(self, audio):
         if not self.nsgt:
             return stft(audio.T, nperseg=self.nperseg, noverlap=self.noverlap)[-1].astype(np.complex64)
         else:
-            return multichan_nsgt(audio, self.nsgt)
+            print('slicq forward!')
+            return np.asarray(list(self.nsgt.forward((audio.T,)))).astype(np.complex64)
 
-    def backward(self, X):
+    def backward(self, X, len_x):
+        print(len_x)
         if not self.nsgt:
-            return istft(X, nperseg=self.nperseg, noverlap=self.noverlap)[1].T[:self.N, :].astype(np.float32)
+            return istft(X, nperseg=self.nperseg, noverlap=self.noverlap)[1].T.astype(np.float32)
         else:
-            return multichan_insgt(X, self.nsgt)
+            print('slicq backward!')
+            return next(reblock(self.nsgt.backward(X), len_x, fulllast=False, multichannel=True)).real.astype(np.float32).T
 
 
 def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
@@ -112,9 +92,13 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
         ratio of magnitudes (alpha=1) and a majority vote (theta = 0.5)
     """
 
+    N = track.audio.shape[0]
+
     X = tf.forward(track.audio)
 
-    (I, F, T) = X.shape
+    print(X.shape)
+
+    #(I, F, T) = X.shape
 
     # soft mask stuff
     if not binary_mask:
@@ -149,8 +133,10 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
         # multiply the mix by the mask
         Yj = np.multiply(X, Mask)
 
+        print(Yj.shape)
+
         # invert to time domain
-        target_estimate = tf.backward(Yj)
+        target_estimate = tf.backward(Yj, N)
 
         # set this as the source estimate
         estimates[name] = target_estimate
@@ -183,15 +169,17 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
     return estimates, bss_scores
 
 
-def ideal_mixphase(track, tf, eval_dir=None, strategy='librosa'):
+def ideal_mixphase(track, tf, eval_dir=None):
     """
     ideal performance of magnitude from estimated source + phase of mix
     which is the default umx strategy for separation
     """
+    N = track.audio.shape[0]
 
     X = tf.forward(track.audio)
 
-    (I, F, T) = X.shape
+    #(I, F, T) = X.shape
+    print(X.shape)
 
     # Compute sources spectrograms
     P = {}
@@ -215,21 +203,11 @@ def ideal_mixphase(track, tf, eval_dir=None, strategy='librosa'):
     for name, source in track.sources.items():
         source_mag = P[name]
 
-        '''
-        strategy 1 and 2 give the exact same answer (for 20ish significant digits)
-        keep librosa.magphase, as its nicer than a hand-written atan2
-        '''
-        if strategy == 'librosa':
-            _, mix_phase = librosa.magphase(model)
-            Yj = source_mag * mix_phase
-        elif strategy == 'numpy':
-            mix_phase = _atan2(model.imag, model.real)
-            Yj = np.multiply(source_mag, np.cos(mix_phase)) + 1j*np.multiply(source_mag, np.sin(mix_phase))
-        else:
-            raise ValueError('unsupported phase inversion strategy')
+        _, mix_phase = librosa.magphase(model)
+        Yj = source_mag * mix_phase
 
         # invert to time domain
-        target_estimate = tf.backward(Yj)
+        target_estimate = tf.backward(Yj, N)
 
         # set this as the source estimate
         estimates[name] = target_estimate
