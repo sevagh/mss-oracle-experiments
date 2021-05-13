@@ -72,28 +72,33 @@ class TrackEvaluator:
             #print(f'track: {track.name}')
             N = track.audio.shape[0]
 
-            _, bss_scores_obj = self.oracle_func(track, tf, eval_dir=None)
-            bss_scores_objs.append(bss_scores_obj)
-            bss_scores = bss_scores_obj.scores
+            _, bss_scores_obj = self.oracle_func(track, tf, eval_dir=None, fast_eval=(not control))
 
-            scores = np.zeros((4, 1), dtype=np.float32)
-            for target_idx, t in enumerate(bss_scores['targets']):
-                if t['name'] == 'accompaniment':
-                    continue
-                for metric_idx, metric in enumerate(['SDR']):
-                    agg = np.nanmedian([np.float32(f['metrics'][metric]) for f in t['frames']])
-                    scores[target_idx, metric_idx] = agg
+            if control:
+                bss_scores_objs.append(bss_scores_obj)
+                bss_scores = bss_scores_obj.scores
 
-            median_sdr = np.median(scores)
-            med_sdrs.append(median_sdr)
-            tot = museval.EvalStore()
-            [tot.add_track(t) for t in bss_scores_objs]
+                scores = np.zeros((4, 1), dtype=np.float32)
+                for target_idx, t in enumerate(bss_scores['targets']):
+                    if t['name'] == 'accompaniment':
+                        continue
+                    for metric_idx, metric in enumerate(['SDR']):
+                        agg = np.nanmedian([np.float32(f['metrics'][metric]) for f in t['frames']])
+                        scores[target_idx, metric_idx] = agg
+
+                median_sdr = np.median(scores)
+                med_sdrs.append(median_sdr)
+            else:
+                med_sdrs.append(bss_scores_obj)
 
         if control:
             tot = museval.EvalStore()
-            [tot.add_track(b) for b in bss_scores_objs]
+            [tot.add_track(t) for t in bss_scores_objs]
+
             return tot, np.median(med_sdrs)
-        return np.median(med_sdrs)
+        else:
+            # fast_eval returns single sdr directly
+            return np.median(med_sdrs)
 
 
 def optimize(f, bounds, name, n_iter, n_random, logdir=None, randstate=1):
@@ -141,7 +146,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bins',
         type=str,
-        default='12,2000',
+        default='120,462',
         help='comma-separated range of bins to evaluate'
     )
     parser.add_argument(

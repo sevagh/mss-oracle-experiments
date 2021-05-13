@@ -1,6 +1,7 @@
 import gc
 import museval
 import numpy as np
+from warnings import warn
 try:
     import cupy
 except ImportError:
@@ -20,7 +21,7 @@ eps = np.finfo(np.float32).eps
 
 
 class TFTransform:
-    def __init__(self, fs, transform_type="stft", window=4096, fscale="cqlog", fmin=20.0, fbins=48, fgamma=25.0):
+    def __init__(self, fs, transform_type="stft", window=4096, fscale="bark", fmin=78.0, fbins=125, fgamma=25.0, sllen=32768, trlen=8192):
         use_nsgt = (transform_type == "nsgt")
 
         self.nperseg = window
@@ -42,14 +43,8 @@ class TFTransform:
             else:
                 raise ValueError(f"unsupported scale {fscale}")
 
-            # use slice length required to support desired frequency scale/q factors
-            sllen = scl.suggested_sllen(fs)
-            trlen = sllen//4
-            trlen = trlen + -trlen % 2 # make trlen divisible by 2
-
-            print(f'{sllen=}, {trlen=}')
             self.nsgt = NSGT_sliced(scl, sllen, trlen, fs, real=True, matrixform=True, multichannel=True)
-            self.name = fscale
+            self.name = f'n{fscale}-{fbins}-{fmin:.2f}'
         else:
             self.name = f's{window}'
 
@@ -57,19 +52,16 @@ class TFTransform:
         if not self.nsgt:
             return stft(audio.T, nperseg=self.nperseg, noverlap=self.noverlap)[-1].astype(np.complex64)
         else:
-            print('slicq forward!')
             return np.asarray(list(self.nsgt.forward((audio.T,)))).astype(np.complex64)
 
     def backward(self, X, len_x):
-        print(len_x)
         if not self.nsgt:
             return istft(X, nperseg=self.nperseg, noverlap=self.noverlap)[1].T.astype(np.float32)
         else:
-            print('slicq backward!')
             return next(reblock(self.nsgt.backward(X), len_x, fulllast=False, multichannel=True)).real.astype(np.float32).T
 
 
-def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
+def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None, fast_eval=False):
     """
     if theta=None:
         Ideal Ratio Mask:
@@ -90,8 +82,6 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
     N = track.audio.shape[0]
 
     X = tf.forward(track.audio)
-
-    print(X.shape)
 
     #(I, F, T) = X.shape
 
@@ -128,8 +118,6 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
         # multiply the mix by the mask
         Yj = np.multiply(X, Mask)
 
-        print(Yj.shape)
-
         # invert to time domain
         target_estimate = tf.backward(Yj, N)
 
@@ -155,16 +143,20 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None):
         fft_cache.set_size(16)
         fft_cache.set_memsize(-1)
 
-    bss_scores = museval.eval_mus_track(
-        track,
-        estimates,
-        output_dir=eval_dir,
-    )
+    bss_scores = None
+    if not fast_eval:
+        bss_scores = museval.eval_mus_track(
+            track,
+            estimates,
+            output_dir=eval_dir,
+        )
+    else:
+        bss_scores = fast_sdr(track, estimates)
 
     return estimates, bss_scores
 
 
-def ideal_mixphase(track, tf, eval_dir=None):
+def ideal_mixphase(track, tf, eval_dir=None, fast_eval=False):
     """
     ideal performance of magnitude from estimated source + phase of mix
     which is the default umx strategy for separation
@@ -174,7 +166,6 @@ def ideal_mixphase(track, tf, eval_dir=None):
     X = tf.forward(track.audio)
 
     #(I, F, T) = X.shape
-    print(X.shape)
 
     # Compute sources spectrograms
     P = {}
@@ -199,6 +190,7 @@ def ideal_mixphase(track, tf, eval_dir=None):
         source_mag = P[name]
 
         _, mix_phase = librosa.magphase(model)
+
         Yj = source_mag * mix_phase
 
         # invert to time domain
@@ -226,10 +218,31 @@ def ideal_mixphase(track, tf, eval_dir=None):
         fft_cache.set_size(16)
         fft_cache.set_memsize(-1)
 
-    bss_scores = museval.eval_mus_track(
-        track,
-        estimates,
-        output_dir=eval_dir,
-    )
+    bss_scores = None
+    if not fast_eval:
+        bss_scores = museval.eval_mus_track(
+            track,
+            estimates,
+            output_dir=eval_dir,
+        )
+    else:
+        bss_scores = fast_sdr(track, estimates)
 
     return estimates, bss_scores
+
+
+'''
+from https://www.aicrowd.com/challenges/music-demixing-challenge-ismir-2021
+    nb_sources, nb_samples, nb_channels = 4, 100000, 2
+    references = np.random.rand(nb_sources, nb_samples, nb_channels)
+    estimates = np.random.rand(nb_sources, nb_samples, nb_channels)
+'''
+def fast_sdr(track, estimates_dct):
+    references = np.asarray([source.audio for source in track.sources.values()])
+    estimates = np.asarray([est for est_name, est in estimates_dct.items() if est_name != 'accompaniment'])
+    # compute SDR for one song
+    num = np.sum(np.square(references), axis=(1, 2)) + eps
+    den = np.sum(np.square(references - estimates), axis=(1, 2)) + eps
+    sdr_instr = 10.0 * np.log10(num  / den)
+    sdr_song = np.mean(sdr_instr)
+    return sdr_song

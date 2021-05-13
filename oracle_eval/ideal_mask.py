@@ -68,15 +68,17 @@ if __name__ == '__main__':
                     fmin=nsgt_conf['fmin'],
                     fbins=nsgt_conf['bins'],
                     fgamma=nsgt_conf.get('gamma', 0.0),
+                    sllen=nsgt_conf.get('sllen', 32768),
+                    trlen=nsgt_conf.get('trlen', 8192),
                 )
             )
 
     masks = [
             {'power': 1, 'binary': False},
-            #{'power': 2, 'binary': False},
+            {'power': 1, 'binary': False, 'phasemix': True},
+            #{'power': 2, 'binary': False}, #-- why test these since no NNs actually use them irl
             #{'power': 1, 'binary': True},
             #{'power': 2, 'binary': True},
-            #{'power': 1, 'binary': False, 'phasemix': True},
     ]
 
     mss_evaluations = list(itertools.product(mus.tracks[:max_tracks], tfs, masks))
@@ -113,7 +115,6 @@ if __name__ == '__main__':
                 0.5,
                 est_path)
         else:
-            print('doing phasemix!')
             est, _ = ideal_mixphase(
                 track,
                 tf,
