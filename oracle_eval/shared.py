@@ -22,12 +22,14 @@ eps = np.finfo(np.float32).eps
 
 class TFTransform:
     def __init__(self, fs, transform_type="stft", window=4096, fscale="bark", fmin=78.0, fbins=125, fgamma=25.0, sllen=32768, trlen=8192):
+        self.transform_type = transform_type
         use_nsgt = (transform_type == "nsgt")
 
         self.nperseg = window
         self.noverlap = self.nperseg // 4
+        self.fbins = fbins
+        self.sllen = sllen
 
-        self.nsgt = None
         self.nsgt = None
 
         if use_nsgt:
@@ -246,3 +248,31 @@ def fast_sdr(track, estimates_dct):
     sdr_instr = 10.0 * np.log10(num  / den)
     sdr_song = np.mean(sdr_instr)
     return sdr_song
+
+
+def dimensionality_cmp(track, tfs):
+    N = track.audio.shape[0]
+    track_dur = N/track.rate
+
+    for tf in tfs:
+        print(f'track duration: {N} samples, {track_dur:.2f} s')
+        if tf.transform_type == "stft":
+            track_multiples = N//(tf.nperseg-tf.nperseg//4) + 2
+            print(f'track in multiples of stft window size {tf.nperseg}: {track_multiples}')
+            print(f'expected f bins: {tf.nperseg//2+1}')
+        elif tf.transform_type == "nsgt":
+            track_multiples = N//(tf.sllen-tf.sllen//4) + 2
+            print(f'nsgt coef factor: {tf.nsgt.coef_factor}')
+            print(f'total ncoefs: {tf.nsgt.coef_factor*tf.sllen}')
+            print(f'track in multiples of nsgt slice size {tf.sllen}: {track_multiples}')
+            print(f'expected f bins: {tf.fbins+1}')
+
+            track_real_multiples = N//X.shape[0]
+            print(f'nsgt actual track multiples: {track_real_multiples}')
+
+        X = tf.forward(track.audio)
+        print(f'forward transform: {X.dtype=}, {X.shape=}')
+        Xmag = np.abs(X)
+        print(f'abs forward transform: {Xmag.dtype=}, {Xmag.shape=}')
+        #(I, F, T) = X.shape
+        print('\n')
