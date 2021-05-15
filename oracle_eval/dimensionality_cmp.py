@@ -65,16 +65,10 @@ if __name__ == '__main__':
         tracks = mus.tracks[:max_tracks]
 
     # stft
-    tf_stft_1 = TFTransform(44100, window=args.window)
-    tf_stft_2 = TFTransform(44100, window=9216)
+    tf_stft = TFTransform(44100, window=9216)
 
     # nsgt sliced
-    tf_nsgt_1 = TFTransform(44100, transform_type="nsgt", sllen=args.sllen, trlen=args.sllen//4)
-    tf_nsgt_2 = TFTransform(44100, transform_type="nsgt", sllen=9216, trlen=2304)
-    tf_nsgt_3 = TFTransform(44100, transform_type="nsgt", sllen=9216, trlen=2304, fbins=36)
-    tf_nsgt_4 = TFTransform(44100, transform_type="nsgt", sllen=args.sllen, trlen=args.sllen//4, fbins=36)
-
-    tf_nsgt_5 = TFTransform(44100, transform_type="nsgt", sllen=args.sllen, trlen=args.sllen//4, fbins=84)
+    tf_nsgt = TFTransform(44100, transform_type="nsgt", sllen=9216, trlen=2304, fscale="bark", fbins=125, fmin=78.0)
 
     t = TrackEvaluator(tracks)
-    t.dimcmp([tf_stft_1, tf_stft_2, tf_nsgt_1, tf_nsgt_2, tf_nsgt_3, tf_nsgt_4, tf_nsgt_5])
+    t.dimcmp([tf_stft, tf_nsgt])
