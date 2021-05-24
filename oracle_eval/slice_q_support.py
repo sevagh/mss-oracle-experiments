@@ -63,21 +63,22 @@ if __name__ == '__main__':
     bins = np.arange(bmin,bmax,bstep)
     fmins = np.arange(fmin,fmax,fstep)
 
-    for (fbins, fmin) in itertools.product(bins, fmins):
-        scl = None
-        if args.fscale == 'mel':
-            scl = MelScale(fmin, fs/2, fbins)
-        elif args.fscale == 'bark':
-            scl = BarkScale(fmin, fs/2, fbins)
-        elif args.fscale == 'vqlog':
-            scl = VQLogScale(fmin, fs/2, fbins, gamma=25)
-        elif args.fscale == 'cqlog':
-            scl = LogScale(fmin, fs/2, fbins)
+    for fmin in fmins:
+        for fbins in bins:
+            scl = None
+            if args.fscale == 'mel':
+                scl = MelScale(fmin, fs/2, fbins)
+            elif args.fscale == 'bark':
+                scl = BarkScale(fmin, fs/2, fbins)
+            elif args.fscale == 'vqlog':
+                scl = VQLogScale(fmin, fs/2, fbins, gamma=25)
+            elif args.fscale == 'cqlog':
+                scl = LogScale(fmin, fs/2, fbins)
 
-        # use slice length required to support desired frequency scale/q factors
-        sllen_suggested = scl.suggested_sllen(fs)
+            # use slice length required to support desired frequency scale/q factors
+            sllen_suggested = scl.suggested_sllen(fs)
 
-        if sllen_suggested > args.sllen_test:
-            print(f"testing nsgt param combination:\n\t{args.fscale=} {fbins=} {fmin=}")
-            print(f'sllen too big to be supported by slice duration: {sldur:.2f} s')
-            sys.exit(0)
+            if sllen_suggested > args.sllen_test:
+                print(f"testing nsgt param combination:\n\t{args.fscale=} {fbins=} {fmin=}")
+                print(f'sllen too big to be supported by slice duration: {sldur:.2f} s')
+                break

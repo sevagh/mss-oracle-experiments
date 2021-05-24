@@ -14,7 +14,8 @@ from scipy.signal import stft, istft
 
 import json
 
-from shared import ideal_mask, ideal_mixphase, TFTransform
+from shared import TFTransform
+from oracle import ideal_mask, ideal_mixphase, ideal_mask_fbin
 
 
 if __name__ == '__main__':
@@ -74,8 +75,9 @@ if __name__ == '__main__':
             )
 
     masks = [
-            {'power': 1, 'binary': False},
-            {'power': 1, 'binary': False, 'phasemix': True},
+            #{'power': 1, 'binary': False},
+            #{'power': 1, 'binary': False, 'phasemix': True},
+            {'power': 1, 'binary': False, 'fbin': True},
             #{'power': 2, 'binary': False}, #-- why test these since no NNs actually use them irl
             #{'power': 1, 'binary': True},
             #{'power': 2, 'binary': True},
@@ -96,6 +98,9 @@ if __name__ == '__main__':
         if mask.get('phasemix', False):
             mask_name = 'mpi'
 
+        if mask.get('fbin', False):
+            mask_name = 'fbin'
+
         name = mask_name
         if tf.name != '':
             name += f'-{tf.name}'
@@ -105,7 +110,7 @@ if __name__ == '__main__':
         est_path = os.path.join(args.eval_dir, f'{name}') if args.eval_dir else None
         aud_path = os.path.join(args.audio_dir, f'{name}') if args.audio_dir else None
 
-        if not mask.get('phasemix', False):
+        if not mask.get('phasemix', False) and not mask.get('fbin', False):
             # ideal mask
             est, _ = ideal_mask(
                 track,
@@ -113,12 +118,17 @@ if __name__ == '__main__':
                 mask['power'],
                 mask['binary'],
                 0.5,
-                est_path)
-        else:
+                eval_dir=est_path)
+        elif mask.get('phasemix', False):
             est, _ = ideal_mixphase(
                 track,
                 tf,
-                os.path.join(args.eval_dir, f'{name}'))
+                eval_dir=est_path)
+        elif mask.get('fbin', False):
+            est, _ = ideal_mask_fbin(
+                track,
+                tf,
+                eval_dir=est_path)
 
         gc.collect()
 

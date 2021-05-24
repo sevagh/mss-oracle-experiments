@@ -1,9 +1,11 @@
 {
   "nsgt_configs": [
     {
-      "bins": 239,
-      "fmin": 30.1,
-      "scale": "bark"
+      "bins": 869,
+      "fmin": 10.0,
+      "scale": "bark",
+      "sllen": 65536,
+      "trlen": 16384
     }
   ]
 }

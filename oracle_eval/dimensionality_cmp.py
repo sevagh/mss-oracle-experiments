@@ -68,7 +68,7 @@ if __name__ == '__main__':
     tf_stft = TFTransform(44100, window=9216)
 
     # nsgt sliced
-    tf_nsgt = TFTransform(44100, transform_type="nsgt", sllen=9216, trlen=2304, fscale="bark", fbins=125, fmin=78.0)
+    tf_nsgt = TFTransform(44100, transform_type="nsgt", sllen=65536, trlen=16384, fscale="bark", fbins=800, fmin=78.0)
 
     t = TrackEvaluator(tracks)
     t.dimcmp([tf_stft, tf_nsgt])

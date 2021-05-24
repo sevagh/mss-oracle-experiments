@@ -7,12 +7,13 @@ from functools import partial
 import numpy as np
 import random
 import argparse
-from bayes_opt import BayesianOptimization
+from bayes_opt import BayesianOptimization, SequentialDomainReductionTransformer
 from bayes_opt.util import load_logs
 from bayes_opt.logger import JSONLogger
 from bayes_opt.event import Events
 
-from shared import ideal_mask, ideal_mixphase, TFTransform
+from shared import TFTransform 
+from oracle import ideal_mask_fbin, ideal_mask, ideal_mixphase, slicq_svd
 
 import scipy
 from scipy.signal import stft, istft
@@ -35,6 +36,12 @@ class TrackEvaluator:
             self.oracle_func = partial(ideal_mask, binary_mask=True, alpha=2)
         elif oracle == 'mpi':
             self.oracle_func = partial(ideal_mixphase)
+        elif oracle == 'fbin':
+            self.oracle_func = partial(ideal_mask_fbin, dur=5, start=20)
+        elif oracle == 'mbin':
+            self.oracle_func = partial(ideal_mask_fbin, dur=5, start=20, mbin=True)
+        elif oracle == 'svd':
+            self.oracle_func = partial(slicq_svd, dur=5, start=20)
         else:
             raise ValueError(f'unsupported oracle {oracle}')
 
@@ -43,19 +50,19 @@ class TrackEvaluator:
         print(all_bsses)
         return single_score
 
-    def eval_vqlog(self, fmin=20.0, bins=12, gamma=25):
-        return self.oracle(scale='vqlog', fmin=fmin, bins=bins, gamma=gamma, control=False)
+    def eval_vqlog(self, fmin=20.0, fmax=22050, bins=12, gamma=25):
+        return self.oracle(scale='vqlog', fmin=fmin, fmax=fmax, bins=bins, gamma=gamma, control=False)
 
-    def eval_cqlog(self, fmin=20.0, bins=12):
-        return self.oracle(scale='cqlog', fmin=fmin, bins=bins, control=False)
+    def eval_cqlog(self, fmin=20.0, fmax=22050, bins=12):
+        return self.oracle(scale='cqlog', fmin=fmin, fmax=fmax, bins=bins, control=False)
 
-    def eval_mel(self, fmin=20.0, bins=12):
-        return self.oracle(scale='mel', fmin=fmin, bins=bins, control=False)
+    def eval_mel(self, fmin=20.0, fmax=22050, bins=12):
+        return self.oracle(scale='mel', fmin=fmin, fmax=fmax, bins=bins, control=False)
 
-    def eval_bark(self, fmin=20.0, bins=12):
-        return self.oracle(scale='bark', fmin=fmin, bins=bins, control=False)
+    def eval_bark(self, fmin=20.0, fmax=22050, bins=12):
+        return self.oracle(scale='bark', fmin=fmin, fmax=fmax, bins=bins, control=False)
 
-    def oracle(self, scale='cqlog', fmin=20.0, bins=12, gamma=25, control=False, stft_window=4096):
+    def oracle(self, scale='cqlog', fmin=20.0, fmax=22050, bins=12, gamma=25, control=False, stft_window=4096):
         bins = int(bins)
 
         med_sdrs = []
@@ -66,7 +73,7 @@ class TrackEvaluator:
             transform_type = "stft"
 
         bss_scores_objs = []
-        tf = TFTransform(44100, transform_type, stft_window, scale, fmin, bins, gamma)
+        tf = TFTransform(44100, transform_type, stft_window, scale, fmin, fmax, bins, gamma, sllen=9216, trlen=2304)
 
         for track in self.tracks:
             #print(f'track: {track.name}')
@@ -102,11 +109,14 @@ class TrackEvaluator:
 
 
 def optimize(f, bounds, name, n_iter, n_random, logdir=None, randstate=1):
+    bounds_transformer = SequentialDomainReductionTransformer()
+
     optimizer = BayesianOptimization(
         f=f,
         pbounds=bounds,
         verbose=2,
         random_state=randstate,
+        bounds_transformer=bounds_transformer,
     )
     if logdir:
         logpath = os.path.join(logdir, f"./{name}_logs.json")
@@ -146,7 +156,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bins',
         type=str,
-        default='120,462',
+        default='10,1000',
         help='comma-separated range of bins to evaluate'
     )
     parser.add_argument(
@@ -154,6 +164,12 @@ if __name__ == '__main__':
         type=str,
         default='10,130',
         help='comma-separated range of fmin to evaluate'
+    )
+    parser.add_argument(
+        '--fmaxes',
+        type=str,
+        default='14000,22050',
+        help='comma-separated range of fmax to evaluate'
     )
     parser.add_argument(
         '--gammas',
@@ -225,18 +241,21 @@ if __name__ == '__main__':
 
     bins = tuple([int(x) for x in args.bins.split(',')])
     fmins = tuple([float(x) for x in args.fmins.split(',')])
+    fmaxes = tuple([float(x) for x in args.fmaxes.split(',')])
     gammas = tuple([float(x) for x in args.gammas.split(',')])
-    print(f'Parameter ranges to evaluate:\n\t{bins=}\n\t{fmins=}\n\t{gammas=}')
+    print(f'Parameter ranges to evaluate:\n\tbins: {bins}\n\tfmins: {fmins}\n\tgammas: {gammas}\n\tfmaxes: {fmaxes}')
 
     pbounds_vqlog = {
         'bins': bins,
         'fmin': fmins,
+        'fmaxes': fmaxes,
         'gamma': gammas,
     }
 
     pbounds_other = {
         'bins': bins,
-        'fmin': fmins
+        'fmin': fmins,
+        'fmax': fmaxes,
     }
 
     print('oracle: {0}'.format(args.oracle))
