@@ -76,8 +76,8 @@ if __name__ == '__main__':
 
     masks = [
             #{'power': 1, 'binary': False},
-            #{'power': 1, 'binary': False, 'phasemix': True},
-            {'power': 1, 'binary': False, 'fbin': True},
+            {'power': 1, 'binary': False, 'phasemix': True},
+            #{'power': 1, 'binary': False, 'fbin': True},
             #{'power': 2, 'binary': False}, #-- why test these since no NNs actually use them irl
             #{'power': 1, 'binary': True},
             #{'power': 2, 'binary': True},
@@ -123,7 +123,10 @@ if __name__ == '__main__':
             est, _ = ideal_mixphase(
                 track,
                 tf,
-                eval_dir=est_path)
+                eval_dir=est_path,
+                dur=7.4,
+                start=46.5
+                )
         elif mask.get('fbin', False):
             est, _ = ideal_mask_fbin(
                 track,

@@ -123,11 +123,16 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None, 
     return estimates, bss_scores
 
 
-def ideal_mixphase(track, tf, eval_dir=None, fast_eval=False):
+def ideal_mixphase(track, tf, eval_dir=None, fast_eval=False, dur=None, start=None):
     """
     ideal performance of magnitude from estimated source + phase of mix
     which is the default umx strategy for separation
     """
+    if dur:
+        track.chunk_duration = dur
+    if start:
+        track.chunk_start = start
+
     N = track.audio.shape[0]
 
     X = tf.forward(track.audio)
@@ -156,7 +161,8 @@ def ideal_mixphase(track, tf, eval_dir=None, fast_eval=False):
     for name, source in track.sources.items():
         source_mag = P[name]
 
-        _, mix_phase = librosa.magphase(model)
+        print('inverting phase')
+        _, mix_phase = torch.tensor(librosa.magphase(model.cpu().numpy()))
 
         Yj = source_mag * mix_phase
 
@@ -185,6 +191,7 @@ def ideal_mixphase(track, tf, eval_dir=None, fast_eval=False):
         fft_cache.set_size(16)
         fft_cache.set_memsize(-1)
 
+    print('computing bss')
     bss_scores = None
     if not fast_eval:
         bss_scores = museval.eval_mus_track(

@@ -1,11 +1,28 @@
 {
+	"stft_configs": {
+					"window_sizes": [4096]
+	},
   "nsgt_configs": [
     {
-      "bins": 869,
-      "fmin": 10.0,
+      "bins": 256,
+      "fmin": 22.8,
       "scale": "bark",
       "sllen": 65536,
       "trlen": 16384
+    },
+    {
+      "bins": 256,
+      "fmin": 22.8,
+      "scale": "bark",
+      "sllen": 32768,
+      "trlen": 8192
+    },
+    {
+      "bins": 256,
+      "fmin": 22.8,
+      "scale": "bark",
+      "sllen": 17592,
+      "trlen": 4398
     }
   ]
 }

@@ -23,7 +23,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bins',
         type=str,
-        default='12,462,10',
+        default='12,2000,10',
         help='comma-separated range of bins to evaluate, step is last element'
     )
     parser.add_argument(
@@ -31,6 +31,12 @@ if __name__ == '__main__':
         type=str,
         default='10,130,5',
         help='comma-separated range of fmin to evaluate, step is last element'
+    )
+    parser.add_argument(
+        '--fmaxes',
+        type=str,
+        default='14000,22050,5',
+        help='comma-separated range of fmax to evaluate, step is last element'
     )
     parser.add_argument(
         '--gammas',
@@ -59,11 +65,13 @@ if __name__ == '__main__':
 
     bmin, bmax, bstep = [int(x) for x in args.bins.split(',')]
     fmin, fmax, fstep = [float(x) for x in args.fmins.split(',')]
+    fmaxmin, fmaxmax, fmaxstep = [float(x) for x in args.fmaxes.split(',')]
 
     bins = np.arange(bmin,bmax,bstep)
     fmins = np.arange(fmin,fmax,fstep)
+    fmaxes = np.arange(fmaxmin,fmaxmax,fmaxstep)
 
-    for fmin in fmins:
+    for (fmin, fmax) in itertools.product(fmins, fmaxes):
         for fbins in bins:
             scl = None
             if args.fscale == 'mel':
@@ -79,6 +87,6 @@ if __name__ == '__main__':
             sllen_suggested = scl.suggested_sllen(fs)
 
             if sllen_suggested > args.sllen_test:
-                print(f"testing nsgt param combination:\n\t{args.fscale=} {fbins=} {fmin=}")
+                print(f"testing nsgt param combination:\n\t{args.fscale=} {fbins=} {fmin=} {fmax=}")
                 print(f'sllen too big to be supported by slice duration: {sldur:.2f} s')
                 break

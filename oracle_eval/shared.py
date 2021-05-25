@@ -23,7 +23,7 @@ eps = np.finfo(np.float32).eps
 
 
 class TFTransform:
-    def __init__(self, fs, transform_type="stft", window=4096, fscale="bark", fmin=78.0, fmax=None, fbins=125, fgamma=25.0, sllen=65536, trlen=16384):
+    def __init__(self, fs, transform_type="stft", window=4096, fscale="bark", fmin=78.0, fmax=None, fbins=125, fgamma=25.0, sllen=None, trlen=None):
         self.transform_type = transform_type
         use_nsgt = (transform_type == "nsgt")
 
@@ -50,8 +50,18 @@ class TFTransform:
             else:
                 raise ValueError(f"unsupported scale {fscale}")
 
+            if sllen is None or trlen is None:
+                # use slice length required to support desired frequency scale/q factors
+                sllen = scl.suggested_sllen(fs)
+                trlen = sllen//4
+                trlen = trlen + -trlen % 2 # make trlen divisible by 2
+
+                print(f'auto-selected {sllen=}, {trlen=}')
+            else:
+                print(f'using supplied {sllen=}, {trlen=}')
+
             self.nsgt = NSGT_sliced(scl, sllen, trlen, fs, real=True, matrixform=True, multichannel=True, reducedform=True, device="cpu")
-            self.name = f'n{fscale}-{fbins}-{fmin:.2f}'
+            self.name = f'n{fscale}-{fbins}-{fmin:.2f}-{sllen}'
         else:
             self.name = f's{window}'
 

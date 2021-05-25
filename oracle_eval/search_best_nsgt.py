@@ -35,7 +35,7 @@ class TrackEvaluator:
         elif oracle == 'ibm2':
             self.oracle_func = partial(ideal_mask, binary_mask=True, alpha=2)
         elif oracle == 'mpi':
-            self.oracle_func = partial(ideal_mixphase)
+            self.oracle_func = partial(ideal_mixphase, dur=5, start=20)
         elif oracle == 'fbin':
             self.oracle_func = partial(ideal_mask_fbin, dur=5, start=20)
         elif oracle == 'mbin':
@@ -73,7 +73,8 @@ class TrackEvaluator:
             transform_type = "stft"
 
         bss_scores_objs = []
-        tf = TFTransform(44100, transform_type, stft_window, scale, fmin, fmax, bins, gamma, sllen=9216, trlen=2304)
+
+        tf = TFTransform(44100, transform_type, stft_window, scale, fmin, fmax, bins, gamma)
 
         for track in self.tracks:
             #print(f'track: {track.name}')
@@ -109,14 +110,14 @@ class TrackEvaluator:
 
 
 def optimize(f, bounds, name, n_iter, n_random, logdir=None, randstate=1):
-    bounds_transformer = SequentialDomainReductionTransformer()
+    #bounds_transformer = SequentialDomainReductionTransformer()
 
     optimizer = BayesianOptimization(
         f=f,
         pbounds=bounds,
         verbose=2,
         random_state=randstate,
-        bounds_transformer=bounds_transformer,
+        #bounds_transformer=bounds_transformer,
     )
     if logdir:
         logpath = os.path.join(logdir, f"./{name}_logs.json")
@@ -156,7 +157,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--bins',
         type=str,
-        default='10,1000',
+        default='10,2000',
         help='comma-separated range of bins to evaluate'
     )
     parser.add_argument(
@@ -165,12 +166,12 @@ if __name__ == '__main__':
         default='10,130',
         help='comma-separated range of fmin to evaluate'
     )
-    parser.add_argument(
-        '--fmaxes',
-        type=str,
-        default='14000,22050',
-        help='comma-separated range of fmax to evaluate'
-    )
+    #parser.add_argument(
+    #    '--fmaxes',
+    #    type=str,
+    #    default='14000,22050',
+    #    help='comma-separated range of fmax to evaluate'
+    #)
     parser.add_argument(
         '--gammas',
         type=str,
@@ -241,21 +242,21 @@ if __name__ == '__main__':
 
     bins = tuple([int(x) for x in args.bins.split(',')])
     fmins = tuple([float(x) for x in args.fmins.split(',')])
-    fmaxes = tuple([float(x) for x in args.fmaxes.split(',')])
+    #fmaxes = tuple([float(x) for x in args.fmaxes.split(',')])
     gammas = tuple([float(x) for x in args.gammas.split(',')])
-    print(f'Parameter ranges to evaluate:\n\tbins: {bins}\n\tfmins: {fmins}\n\tgammas: {gammas}\n\tfmaxes: {fmaxes}')
+    print(f'Parameter ranges to evaluate:\n\tbins: {bins}\n\tfmins: {fmins}\n\tgammas: {gammas}')
 
     pbounds_vqlog = {
         'bins': bins,
         'fmin': fmins,
-        'fmaxes': fmaxes,
+        #'fmax': fmaxes,
         'gamma': gammas,
     }
 
     pbounds_other = {
         'bins': bins,
         'fmin': fmins,
-        'fmax': fmaxes,
+        #'fmax': fmaxes,
     }
 
     print('oracle: {0}'.format(args.oracle))

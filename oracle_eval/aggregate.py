@@ -36,6 +36,7 @@ def aggregate(input_dirs, output_path=None):
             for json_path in json_paths:
                 df = museval2df(json_path)
                 df['method'] = p.stem
+                print(df['method'])
                 data.append(df)
 
     df = pd.concat(data, ignore_index=True)
