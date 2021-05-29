@@ -30,7 +30,6 @@ class TFTransform:
         self.nperseg = window
         self.noverlap = self.nperseg // 4
         self.fbins = fbins
-        self.sllen = sllen
 
         self.nsgt = None
 
@@ -60,6 +59,7 @@ class TFTransform:
             else:
                 print(f'using supplied {sllen=}, {trlen=}')
 
+            self.sllen = sllen
             self.nsgt = NSGT_sliced(scl, sllen, trlen, fs, real=True, matrixform=True, multichannel=True, reducedform=True, device="cpu")
             self.name = f'n{fscale}-{fbins}-{fmin:.2f}-{sllen}'
         else:

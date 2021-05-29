@@ -25,6 +25,26 @@ eps = np.finfo(np.float32).eps
 from shared import fast_sdr
 
 
+def ideal_mask_mixphase_per_coef(track, tf, eval_dir=None, dur=None, start=None, fast_eval=None):
+    if dur:
+        track.chunk_duration = dur
+    if start:
+        track.chunk_start = start
+
+    _, bss_scores1 = ideal_mask(track, tf, binary_mask=False, alpha=1, fast_eval=True)
+    _, bss_scores2 = ideal_mixphase(track, tf, fast_eval=True)
+
+    X = tf.forward(track.audio)
+
+    #(I, F, T) = X.shape
+    coef = int(tf.nsgt.coef_factor*tf.sllen)*tf.fbins+1
+
+    # return score divided by coefficient count
+    ret = (bss_scores1+bss_scores2)/coef
+    return None, ret
+
+
+
 def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None, fast_eval=False):
     """
     if theta=None:
@@ -43,9 +63,6 @@ def ideal_mask(track, tf, alpha=2, binary_mask=False, theta=0.5, eval_dir=None, 
         ratio of magnitudes (alpha=1) and a majority vote (theta = 0.5)
 
     """
-    track.chunk_duration = 30
-    track.chunk_start = 20
-
     N = track.audio.shape[0]
 
     X = tf.forward(track.audio)
@@ -152,6 +169,9 @@ def ideal_mixphase(track, tf, eval_dir=None, fast_eval=False, dur=None, start=No
 
         P[name] = np.abs(src_coef)
 
+        #print('{0} {1}: {2}'.format(tf.name, name, P[name]))
+        #input()
+
         # store the original, not magnitude, in the mix
         model += src_coef
 
@@ -160,6 +180,7 @@ def ideal_mixphase(track, tf, eval_dir=None, fast_eval=False, dur=None, start=No
     accompaniment_source = 0
     for name, source in track.sources.items():
         source_mag = P[name]
+        #print(source_mag)
 
         print('inverting phase')
         _, mix_phase = torch.tensor(librosa.magphase(model.cpu().numpy()))

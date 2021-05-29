@@ -75,7 +75,7 @@ if __name__ == '__main__':
             )
 
     masks = [
-            #{'power': 1, 'binary': False},
+            {'power': 1, 'binary': False},
             {'power': 1, 'binary': False, 'phasemix': True},
             #{'power': 1, 'binary': False, 'fbin': True},
             #{'power': 2, 'binary': False}, #-- why test these since no NNs actually use them irl

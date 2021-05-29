@@ -4,25 +4,11 @@
 	},
   "nsgt_configs": [
     {
-      "bins": 256,
-      "fmin": 22.8,
-      "scale": "bark",
-      "sllen": 65536,
-      "trlen": 16384
-    },
-    {
-      "bins": 256,
-      "fmin": 22.8,
-      "scale": "bark",
-      "sllen": 32768,
-      "trlen": 8192
-    },
-    {
-      "bins": 256,
-      "fmin": 22.8,
-      "scale": "bark",
-      "sllen": 17592,
-      "trlen": 4398
+      "bins": 10,
+      "fmin": 68.64,
+      "scale": "mel",
+      "sllen": 1024,
+      "trlen": 256 
     }
   ]
 }

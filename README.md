@@ -1,3 +1,7 @@
+**:warning: PROJECT ARCHIVAL NOTICE 2021-05-29 :warning:**
+
+These scripts and findings will be released as part of a bigger project soon.
+
 # mss-oracle-experiments
 
 This repo contains experiments in music source separation, mostly related to oracle mask performance.

@@ -13,7 +13,7 @@ from bayes_opt.logger import JSONLogger
 from bayes_opt.event import Events
 
 from shared import TFTransform 
-from oracle import ideal_mask_fbin, ideal_mask, ideal_mixphase, slicq_svd
+from oracle import ideal_mask_fbin, ideal_mask, ideal_mixphase, slicq_svd, ideal_mask_mixphase_per_coef
 
 import scipy
 from scipy.signal import stft, istft
@@ -42,6 +42,8 @@ class TrackEvaluator:
             self.oracle_func = partial(ideal_mask_fbin, dur=5, start=20, mbin=True)
         elif oracle == 'svd':
             self.oracle_func = partial(slicq_svd, dur=5, start=20)
+        elif oracle == 'global':
+            self.oracle_func = partial(ideal_mask_mixphase_per_coef, dur=10, start=34.7)
         else:
             raise ValueError(f'unsupported oracle {oracle}')
 
